@@ -3,5 +3,3 @@ darktable/
 *.out
 deprecated/
 kernels/
-inspect-mxr/
-migrate-mxr/
