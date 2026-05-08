@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/stoflom/Workspace/darktable/inspect-darktable-mxr/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

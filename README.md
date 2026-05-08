@@ -1,6 +1,6 @@
 # Darktable Build Automator
 
-This repository contains a specialized build script, `build_darktable.sh`, designed to automate the process of updating the darktable source code and building it with a specific, pre-configured set of features and installation parameters. This script is for users who are anxious to try the latest-and-greatest. You should also be comfortable with software development tools and installing applications from the linux commandline.
+This repository contains a specialized build script, `build_darktable.sh`, designed to automate the process of updating the darktable source code and building it with a specific, pre-configured set of features and installation parameters. This script is for users who are eager to try the latest-and-greatest. You should also be comfortable with software development tools and installing applications from the linux commandline.
 
 This will install the latest---as yet unreleased---build from the darktable developers. There is no guarantee that this code will be functional. Also installing this may **DESTROY ANY EXISTING DARKTABLE** installation you already have. Refer to the darktable documentation if you want to install this side-by-side to an existing installation. Or preferably, install it in a separate environment using `boxes`. Do not use `toolbox` since your HOME space is retained. In any case, make a backup of you HOME space.
 
@@ -47,7 +47,7 @@ Current default options:
 
 ## Creating symbolic links
 
-After building and installing the first time (only needed once) you must create a few symbolic links to make the new binaries visible in your command path and also the icon in your desktop. Run the following script: (you will need sudo)
+After building and installing the first time (only needed once) you must create symbolic links to make the new binaries visible in your command path and also the icon in your desktop. The script scans `/opt/darktable` subdirectories and creates the required links automatically (sudo is handled internally):
 ```bash
 ./make-links.sh
 ```
@@ -79,4 +79,4 @@ export ORT_MIGRAPHX_MODEL_CACHE_PATH='/home/<user>/.cache/darktable/ai/amd/migra
 export MIGRAPHX_GPU_COMPILE_PARALLEL="$(nproc)"
 ```
 
-When all goes well the kernels (mxr files) will be created under /home/s<user>/.cache/darktable/ai/amd/migraphx for your specific use cases. They will enable very efficient processing of the ai models on your hardware. NOTE you may need a good amount of memory: on my Fedora setup the migraphx compile process showed memory use up to about 10GB VRAM and about 4-5GB when running the pre-compiled mxr kernels. This is the total memory used by the system without much else running in user space.
+When all goes well the kernels (mxr files) will be created under /home/<user>/.cache/darktable/ai/amd/migraphx for your specific use cases. They will enable very efficient processing of the ai models on your hardware. NOTE you may need a good amount of memory: on my Fedora setup the migraphx compile process showed memory use up to about 10GB VRAM and about 4-5GB when running the pre-compiled mxr kernels. This is the total memory used by the system without much else running in user space.
