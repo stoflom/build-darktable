@@ -1,3 +1,6 @@
 build/
 *.out
 *.txt
+main0.cpp
+gemini*
+
