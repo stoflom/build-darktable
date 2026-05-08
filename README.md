@@ -47,7 +47,7 @@ Current default options:
 
 ## Creating symbolic links
 
-After building and installing the first time (only needed once) you must create symbolic links to make the new binaries visible in your command path and also the icon in your desktop. The script scans `/opt/darktable` subdirectories and creates the required links automatically (sudo is handled internally):
+After building and installing the first time (only needed once) you must create symbolic links to make the new binaries visible in your command path and also the icon in your desktop. The script scans `/opt/darktable` subdirectories and creates the required links automatically (You will be prompted for the sudo password.):
 ```bash
 ./make-links.sh
 ```
@@ -75,8 +75,8 @@ export MIOPEN_USER_DB_PATH='/home/<user>/.cache/darktable/ai/amd/miopen'
 export MIOPEN_CUSTOM_CACHE_DIR='/home/<user>/.cache/darktable/ai/amd/miopen'
 #Set migraphx cache directory
 export ORT_MIGRAPHX_MODEL_CACHE_PATH='/home/<user>/.cache/darktable/ai/amd/migraphx'
-# Allow migraphx to compile with all cores will provide some speedup of the first-use compile process.
+# Allow migraphx to compile with all cores will provide some speedup of the first-use.
 export MIGRAPHX_GPU_COMPILE_PARALLEL="$(nproc)"
 ```
 
-When all goes well the kernels (mxr files) will be created under /home/<user>/.cache/darktable/ai/amd/migraphx for your specific use cases. They will enable very efficient processing of the ai models on your hardware. NOTE you may need a good amount of memory: on my Fedora setup the migraphx compile process showed memory use up to about 10GB VRAM and about 4-5GB when running the pre-compiled mxr kernels. This is the total memory used by the system without much else running in user space.
+When all goes well the kernels (mxr files) will be created under /home/<user>/.cache/darktable/ai/amd/migraphx for your specific use cases. They will enable very efficient processing of the ai models on your hardware. NOTE you may need a good amount of memory: on my fedora setup with total shared RAM 64GB, the migraphx compile process showed memory use up to about 10GB VRAM and about 4-5GB when running the pre-compiled mxr kernels. This is the total memory used by the system without much else running in user space.
