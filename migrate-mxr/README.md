@@ -1,3 +1,5 @@
+** NOTE: This is working but not yet completely useful! Further work required to determine the correct shapes. **
+
 # Darktable MIGraphX Model Recompiler
 
 Compiles ONNX models into MIGraphX (`.mxr`) binaries for your GPU using ONNX Runtime with the MIGraphX Execution Provider. This script will take a significant time to run, probably above 30m, depending on your hardware.
