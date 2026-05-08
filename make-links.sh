@@ -53,7 +53,7 @@ make_links() {
     while IFS= read -r -d '' f; do
         rel="${f#$DT/share/man/}"
         make_link "$f" "$MAN_DST/$rel"
-    done < <(find "$DT/share/man" -type f -name '*.gz' -o -name '*.1' -print0 2>/dev/null || true)
+    done < <(find "$DT/share/man" -type f -name '*.1.gz' -o -name '*.1' -print0 2>/dev/null || true)
 
     echo "---"
     echo "Done: $links_made links created, $links_failed skipped (already existed)"
