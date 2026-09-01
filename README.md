@@ -54,7 +54,7 @@ After building and installing the first time (only needed once), you must create
 
 ## Running AI models
 
-The options above include the `--enable-ai` flag, which is required to use the new AI denoising, mask generation, and upscaling features of darktable, which have not yet been released.
+The options above include the `--enable-ai` flag, which is required to use the new AI denoising, mask generation, and upscaling features of darktable, which have been released in version 5.6.
 
 ## ONNX Runtime CPU Provider
 
@@ -62,9 +62,9 @@ Works out-of-the-box after installing and using the darktable-provided ONNX Runt
 
 ## MIGraphX provider under Fedora 44
 
-If the ROCm, HIP, MiOS, and MIGraphX AMD-supplied libraries in the Fedora 44 repository are installed, ONNX Runtime can be compiled to use MIGraphX for your specific CPU and GPU. (See [https://github.com/stoflom/onnxruntime](https://github.com/stoflom/onnxruntime)). The compiled ONNX Runtime can then be selected in **Darktable → Preferences → AI** submenu. The darktable developers have also created a script to install a pre-compiled ONNX Runtime with MIGraphX enabled; see `darktable/tools/ai/README.md`.
+If the ROCm, HIP, MiOS, and MIGraphX AMD-supplied libraries in the Fedora 44 repository are installed, ONNX Runtime can be compiled to use MIGraphX for your specific CPU and GPU. (See [https://github.com/stoflom/onnxruntime](https://github.com/stoflom/onnxruntime)). The compiled ONNX Runtime can then be selected in **Darktable → Preferences → AI** submenu. The darktable developers have also kindly created a script to install a pre-compiled ONNX Runtime with MIGraphX enabled; see `darktable/tools/ai/README.md`.
 
-With ONNX Runtime and the MIGraphX execution provider, on my AMD Ryzen Pro 9 8945HS, AI is sped up about 10× compared to the CPU provider. However, initially compiling the ONNX kernels takes a very long time (>40 min for raw denoise). The kernels are compiled on first use, a process that makes darktable appear frozen. It is better to run darktable from the command line to compile the MIGraphX kernels initially so that progress can be monitored.
+With ONNX Runtime and the MIGraphX execution provider, on my AMD Ryzen Pro 9 8945HS, AI is sped up about 10× compared to the CPU provider. However, initially compiling the ONNX kernels takes a very long time (>40 min for raw denoise). The kernels are compiled on first use, a process that makes darktable appear frozen. It is better to run darktable from the command line to compile the MIGraphX kernels initially so that progress can be monitored in the terminal.
 ```bash
 darktable -d ai
 ```
