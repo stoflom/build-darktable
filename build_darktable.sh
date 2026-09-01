@@ -30,6 +30,10 @@ if ! git pull --recurse-submodules; then
 	echo "Error: Failed to pull from remote."
 	exit 1
 fi
+if ! git submodule update --init --recursive; then
+	echo "Error: Failed to update submodules."
+	exit 1
+fi
 
 # -----------------------------------------------------------------------------
 # Clean Build Directory
@@ -46,10 +50,11 @@ BUILD_OPTIONS=(
 	--prefix /opt/darktable
 	--build-type Release
 	--enable-ai
+	--enable-opencv
 	--install
 	--sudo
-    --
-    -DCMAKE_C_FLAGS="-Wno-error=nonnull -Wno-dev"
+	--
+	-DCMAKE_C_FLAGS='-Wno-error=nonnull -Wno-dev'
 )
 
 # -----------------------------------------------------------------------------
