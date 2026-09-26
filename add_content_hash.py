@@ -36,6 +36,9 @@ Options:
   --check          verify existing identifiers instead of writing; exit 1
                    on mismatch or error (sidecars without an identifier yet
                    are reported as missing but not treated as failures)
+  --remove-orphans remove sidecars whose companion image file does not
+                   exist (default: report them as orphans only). Combine
+                   with --dry-run to list them without removing anything.
   --length N       identifier length in hex chars (default 64 = full BLAKE3;
                    use 16 to match the short form in HASH.md)
   --prefix P       identifier prefix (default "hash:")
@@ -197,6 +200,14 @@ def process(xmp_path, args, digest):
     if digest is None:
         img_path = xmp_path[: -len(".xmp")]
         if not os.path.isfile(img_path):
+            if args.remove_orphans:
+                if args.dry_run:
+                    return "would-remove", None, "orphan: %s" % img_path
+                try:
+                    os.unlink(xmp_path)
+                except OSError as e:
+                    return "error", None, "orphan remove failed: %s" % e
+                return "removed", None, "orphan: %s" % img_path
             return "orphan", None, "no companion image: %s" % img_path
         return "error", None, "no hash for %s" % img_path
 
@@ -281,6 +292,8 @@ def main(argv):
     ap.add_argument("paths", nargs="+", metavar="PATH")
     ap.add_argument("--dry-run", action="store_true", help="report what would change, write nothing")
     ap.add_argument("--check", action="store_true", help="verify existing identifiers; exit 1 on mismatch or error")
+    ap.add_argument("--remove-orphans", action="store_true",
+                    help="remove sidecars whose companion image does not exist (use --dry-run to only list them)")
     ap.add_argument("--length", type=int, default=64, metavar="N", help="identifier length in hex chars, 1-64 (default 64)")
     ap.add_argument("--prefix", default="hash:", metavar="P", help="identifier prefix (default 'hash:')")
     ap.add_argument("--force", action="store_true", help="replace the whole notes field (discards other note text)")
@@ -293,6 +306,8 @@ def main(argv):
         ap.error("--length must be between 1 and 64")
     if args.threads < 0:
         ap.error("--threads must be at least 1 (0 = number of CPUs)")
+    if args.remove_orphans and args.check:
+        ap.error("--check and --remove-orphans are mutually exclusive")
     if not shutil_which("b3sum"):
         sys.exit("error: b3sum (BLAKE3) not found in PATH")
 

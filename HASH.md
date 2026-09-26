@@ -105,7 +105,10 @@ Safety properties:
   which is exactly what darktable needs to recognise it as externally
   modified.
 - Orphan sidecars (no companion image file) and unreadable files are
-  skipped and reported, never clobbered.
+  skipped and reported, never clobbered. Orphans can be removed with
+  `--remove-orphans` (preview first with `--dry-run`). Note that a missing
+  image may simply have been moved elsewhere without its sidecar — search
+  for it before removing the sidecar.
 
 ## Workflow
 

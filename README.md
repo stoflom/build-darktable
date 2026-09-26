@@ -70,6 +70,17 @@ After building and installing the first time (only needed once), you must create
 
 The script edits the sidecars surgically and idempotently; it does not touch `darktable:change_timestamp` or the library database. The next time darktable opens the library it will detect the sidecars as externally modified — accept the reload changed-images prompt and the identifiers will be picked up into the library. **Do not run it against directories while darktable has the library open.**
 
+### Removing orphaned sidecars
+
+A sidecar whose companion image file is missing (an *orphan*) is normally just reported. To remove orphans, re-run the script with `--remove-orphans` (combine with `--dry-run` first to list what would be deleted):
+
+```bash
+./add_content_hash.py --dry-run --remove-orphans ~/Pictures
+./add_content_hash.py --remove-orphans ~/Pictures
+```
+
+**Before removing sidecars, search for the missing image files** — the image may simply have been moved or renamed without its sidecar. If you find them, move the sidecar along with the image (or back to the image's original directory) and re-run the script so the sidecar is picked up again, instead of deleting it. An orphaned sidecar contains your full edit history and masks for that image; deleting it throws that away.
+
 Requires Python 3 and `b3sum` (the BLAKE3 reference tool) in PATH.
 
 ## Running AI models
