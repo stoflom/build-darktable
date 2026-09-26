@@ -50,7 +50,6 @@ BUILD_OPTIONS=(
 	--prefix /opt/darktable
 	--build-type Release
 	--enable-ai
-	--enable-opencv
 	--install
 	--sudo
 	--
