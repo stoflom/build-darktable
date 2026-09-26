@@ -76,7 +76,7 @@ ELEM_RE = re.compile(r"(<acdsee:notes[^>]*>)(.*?)(</acdsee:notes>)", re.S)
 DESC_RE = re.compile(r"<rdf:Description\b[^>]*>")
 
 
-def hash_images(paths):
+def hash_images(paths, quiet=False):
     """Batch-hash image files with b3sum; returns {path: digest}.
 
     b3sum runs one rayon thread per input file (pool = logical cores),
@@ -95,7 +95,13 @@ def hash_images(paths):
         chunks.append(cur)
 
     digests = {}
-    for chunk in chunks:
+    for i, chunk in enumerate(chunks, 1):
+        if not quiet:
+            print(
+                "hashing chunk %d/%d (%d files)..."
+                % (i, len(chunks), len(chunk)),
+                file=sys.stderr,
+            )
         out = subprocess.run(
             ["b3sum", "-l", "32", "--"] + chunk,
             capture_output=True, text=True,
@@ -177,6 +183,13 @@ def extract_ident(note, prefix):
         if line.startswith(prefix):
             return line
     return None
+
+
+def progress(done, total, args):
+    """Overwrite a single progress line on a TTY stderr (no-op otherwise)."""
+    if not args.quiet and sys.stderr.isatty():
+        sys.stderr.write("\r  %d/%d sidecars" % (done, total))
+        sys.stderr.flush()
 
 
 def process(xmp_path, args, digest):
@@ -287,11 +300,17 @@ def main(argv):
     if not files:
         sys.exit("error: no .xmp sidecars found")
 
+    missing = [p for p in args.paths if not os.path.exists(p)]
+    if missing:
+        for p in missing:
+            print("error: no such file or directory: %s" % p, file=sys.stderr)
+        sys.exit(2)
+
     # Phase 1: hash all companion images in batched b3sum invocations.
     images = [x[:-4] for x in files if os.path.isfile(x[:-4])]
     if images and not args.quiet:
         print("hashing %d image files..." % len(images), file=sys.stderr)
-    digests = hash_images(images) if images else {}
+    digests = hash_images(images, quiet=args.quiet) if images else {}
 
     # Phase 2: apply the sidecar edits in a thread pool.
     if not args.quiet:
@@ -309,6 +328,8 @@ def main(argv):
             elif status in ("updated", "would-update", "up-to-date"):
                 msg += "  [%s] %s" % (status, ident)
             print(msg)
+    if not args.quiet and sys.stderr.isatty():
+        print(file=sys.stderr)  # terminate the progress line
 
     print(
         "summary: %s — %s"
@@ -327,14 +348,19 @@ def shutil_which(name):
 
 
 def run_files(files, digests, args):
-    """Process sidecars, in parallel by default; results in input order."""
+    """Process sidecars, in parallel by default; yields results in input order."""
     workers = args.threads if args.threads > 0 else (os.cpu_count() or 1)
     work = [(xmp, digests.get(xmp[:-4])) for xmp in files]
     if workers == 1 or len(work) == 1:
-        return [(xmp, process(xmp, args, d)) for xmp, d in work]
+        for i, (xmp, d) in enumerate(work):
+            progress(i, len(work), args)
+            yield xmp, process(xmp, args, d)
+        return
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(process, xmp, args, d) for xmp, d in work]
-        return [(xmp, fut.result()) for xmp, fut in zip(work, futures)]
+        futures = [(xmp, pool.submit(process, xmp, args, d)) for xmp, d in work]
+        for i, (xmp, fut) in enumerate(futures):
+            progress(i, len(futures), args)
+            yield xmp, fut.result()
 
 
 if __name__ == "__main__":

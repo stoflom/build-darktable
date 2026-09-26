@@ -1,4 +1,5 @@
 darktable/
+__pycache__/
 *.txt
 *.out
 deprecated/
