@@ -52,6 +52,24 @@ After building and installing the first time (only needed once), you must create
 ./make-links.sh
 ```
 
+## Stamping content-hash identifiers into XMP sidecars
+
+`add_content_hash.py` adds a BLAKE3 content-hash identifier (`hash:<hex>`) of the original image file to the Notes field (`Xmp.acdsee.notes`) of every darktable XMP sidecar. This lets each image be identified and verified independently of file path and date stamps, without cluttering the tags module. See `HASH.md` for the full design notes, workflow, and caveats.
+
+```bash
+# 1. Back up the photography tree FIRST — images AND their .xmp sidecars
+#    (the sidecar is the only place your edit history and masks live).
+# 2. Make sure darktable is closed.
+# 3. Preview, then run, then verify:
+./add_content_hash.py --dry-run ~/Pictures
+./add_content_hash.py ~/Pictures
+./add_content_hash.py --check ~/Pictures
+```
+
+The script edits the sidecars surgically and idempotently; it does not touch `darktable:change_timestamp` or the library database. The next time darktable opens the library it will detect the sidecars as externally modified — accept the reload changed-images prompt and the identifiers will be picked up into the library. **Do not run it against directories while darktable has the library open.**
+
+Requires Python 3 and `b3sum` (the BLAKE3 reference tool) in PATH.
+
 ## Running AI models
 
 The options above include the `--enable-ai` flag, which is required to use the new AI denoising, mask generation, and upscaling features of darktable, which have been released in version 5.6.
@@ -71,12 +89,12 @@ darktable -d ai
 Saving the compiled kernels in a cache is essential for future use. Darktable sets environment variables for the cache directories when MIGraphX is enabled. They can also be set manually when starting Darktable from the command line (`setenv.sh`):
 ```bash
 #Set miopen cache directory
-export MIOPEN_USER_DB_PATH='/home/<user>/.cache/darktable/ai/amd/miopen'
-export MIOPEN_CUSTOM_CACHE_DIR='/home/<user>/.cache/darktable/ai/amd/miopen'
+export MIOPEN_USER_DB_PATH="${HOME}/.cache/darktable/ai/amd/miopen"
+export MIOPEN_CUSTOM_CACHE_DIR="${HOME}/.cache/darktable/ai/amd/miopen"
 #Set migraphx cache directory
-export ORT_MIGRAPHX_MODEL_CACHE_PATH='/home/<user>/.cache/darktable/ai/amd/migraphx'
+export ORT_MIGRAPHX_MODEL_CACHE_PATH="${HOME}/.cache/darktable/ai/amd/migraphx"
 # Allow migraphx to compile with all cores will provide some speedup of the first-use.
 export MIGRAPHX_GPU_COMPILE_PARALLEL="$(nproc)"
 ```
 
-When all goes well, the kernels (`.mxr` files) will be created under `/home/<user>/.cache/darktable/ai/amd/migraphx` for your specific use cases. They will enable very efficient processing of the AI models on your hardware. **Note:** you may need a good amount of memory: on my Fedora setup with 64 GB shared RAM, the MIGraphX compile process used up to about 10 GB VRAM and 4–5 GB when running the pre-compiled `.mxr` kernels. This is the total memory used by the system with little else running in user space.
+When all goes well, the kernels (`.mxr` files) will be created under `${HOME}/.cache/darktable/ai/amd/migraphx` for your specific use cases. They will enable very efficient processing of the AI models on your hardware. **Note:** you may need a good amount of memory: on my Fedora setup with 64 GB shared RAM, the MIGraphX compile process used up to about 10 GB VRAM and 4–5 GB when running the pre-compiled `.mxr` kernels. This is the total memory used by the system with little else running in user space.
