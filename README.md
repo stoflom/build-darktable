@@ -2,6 +2,8 @@
 
 This repository contains a specialized build script, `build_darktable.sh`, designed to automate the process of updating the darktable source code and building it with a specific, pre-configured set of features and installation parameters. This script is for users who are eager to try the latest-and-greatest. You should also be comfortable with software development tools and installing applications from the Linux command line.
 
+The repository also includes `add_content_hash.py`, which stamps a BLAKE3 content-hash identifier into darktable XMP sidecars (see `HASH.md` for details).
+
 This will install the latest---as yet unreleased---build from the darktable developers. There is no guarantee that this code will be functional. Also installing this may **DESTROY ANY EXISTING DARKTABLE** installation you already have. Refer to the darktable documentation if you want to install this side-by-side to an existing installation. Or preferably, install it in a separate environment using `boxes`. Do not use `toolbox` since your HOME space is retained. In any case, make a backup of your HOME space.
 
 ## Purpose
