@@ -72,16 +72,18 @@ The script edits the sidecars surgically and idempotently; it does not touch `da
 
 ### Removing orphaned sidecars
 
-A sidecar whose companion image file is missing (an *orphan*) is normally just reported. To remove orphans, re-run the script with `--remove-orphans` (combine with `--dry-run` first to list what would be deleted):
+A sidecar whose companion image file is missing (an *orphan*) is normally just reported. `--remove-orphans` is a standalone prune mode: it tests each sidecar for a live companion and unlinks only the ones that have none. It never opens, hashes or rewrites an image or a sidecar that has a companion, so a prune over a multi-TB tree is a metadata-only walk and needs neither `b3sum` nor darktable to be closed. It is therefore a separate run from the stamping pass:
 
 ```bash
 ./add_content_hash.py --dry-run --remove-orphans ~/Pictures
 ./add_content_hash.py --remove-orphans ~/Pictures
 ```
 
+Sidecars with a live companion are reported as `kept` and left byte-identical. The identifier options (`--length`, `--prefix`, `--force`) have no effect in this mode, and it cannot be combined with `--check`.
+
 **Before removing sidecars, search for the missing image files** — the image may simply have been moved or renamed without its sidecar. If you find them, move the sidecar along with the image (or back to the image's original directory) and re-run the script so the sidecar is picked up again, instead of deleting it. An orphaned sidecar contains your full edit history and masks for that image; deleting it throws that away.
 
-Requires Python 3 and `b3sum` (the BLAKE3 reference tool) in PATH.
+Requires Python 3, plus `b3sum` (the BLAKE3 reference tool) in PATH for the stamping and `--check` runs.
 
 ## Running AI models
 

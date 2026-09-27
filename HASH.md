@@ -71,11 +71,14 @@ in **batched `b3sum` invocations** (chunks sized to fit the OS command-line
 limit; `b3sum` runs one rayon thread per file and so saturates all cores by
 itself — no per-file process spawning), then it applies the sidecar edits in
 a thread pool. This stays efficient for very large trees (multi-TB).
+`--remove-orphans` skips both phases entirely: an `os.path.isfile()` test plus,
+for the ones that fail it, `os.unlink()`.
 
 | Option         | Effect                                                            |
 | -------------- | ----------------------------------------------------------------- |
 | `--dry-run`    | Report what would change; write nothing                           |
 | `--check`      | Verify existing identifiers against recomputed hashes; exit 1 on any mismatch or error |
+| `--remove-orphans` | Standalone prune mode: remove sidecars with no companion image; no image is opened, hashed or rewritten (cannot be combined with `--check`) |
 | `--length N`   | Identifier length in hex chars, 1–64 (default 64)                 |
 | `--prefix P`   | Identifier prefix (default `hash:`)                               |
 | `--force`      | Replace the whole Notes field with the identifier (discards other note text) |
@@ -106,9 +109,10 @@ Safety properties:
   modified.
 - Orphan sidecars (no companion image file) and unreadable files are
   skipped and reported, never clobbered. Orphans can be removed with
-  `--remove-orphans` (preview first with `--dry-run`). Note that a missing
-  image may simply have been moved elsewhere without its sidecar — search
-  for it before removing the sidecar.
+  `--remove-orphans`, which is a standalone prune pass: nothing is hashed
+  and sidecars with a live companion are left byte-identical (preview with
+  `--dry-run`). Note that a missing image may simply have been moved
+  elsewhere without its sidecar — search for it before removing the sidecar.
 
 ## Workflow
 

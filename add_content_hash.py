@@ -36,9 +36,14 @@ Options:
   --check          verify existing identifiers instead of writing; exit 1
                    on mismatch or error (sidecars without an identifier yet
                    are reported as missing but not treated as failures)
-  --remove-orphans remove sidecars whose companion image file does not
-                   exist (default: report them as orphans only). Combine
-                   with --dry-run to list them without removing anything.
+  --remove-orphans prune sidecars whose companion image file does not exist
+                   (default: report them as orphans only). This is a
+                   standalone mode: it never opens, hashes or rewrites any
+                   image or sidecar that has a live companion, so it is
+                   cheap even for multi-TB trees. Combine with --dry-run to
+                   list the orphans without removing anything. The
+                   identifier options (--length, --prefix, --force) and
+                   --threads have no effect here.
   --length N       identifier length in hex chars (default 64 = full BLAKE3;
                    use 16 to match the short form in HASH.md)
   --prefix P       identifier prefix (default "hash:")
@@ -57,6 +62,10 @@ How it works (two phases):
      across the files in each chunk), which is efficient even for very
      large trees (multi-TB).
   2. The sidecar XML edits are applied in a thread pool.
+
+--remove-orphans skips both phases: an os.path.isfile() test plus, for the
+ones that fail it, os.unlink() — threaded over the same worker pool, so a
+prune over a multi-TB tree is a metadata-only walk.
 
 Exit codes: 0 = ok (or dry-run/check passed), 1 = errors/mismatches, 2 = usage.
 A --check run does not fail on sidecars that simply lack an identifier yet
@@ -195,19 +204,30 @@ def progress(done, total, args):
         sys.stderr.flush()
 
 
+def prune(xmp_path, args, _payload=None):
+    """Remove (or list) a sidecar whose companion image is gone.
+
+    Touches nothing else: no hashing, no XML edits, and sidecars that do
+    have a live companion are reported as kept and left alone.
+    """
+    img_path = xmp_path[: -len(".xmp")]
+    if os.path.isfile(img_path):
+        return "kept", None, ""
+    if args.dry_run:
+        return "would-remove", None, "orphan: %s" % img_path
+    try:
+        os.unlink(xmp_path)
+    except OSError as e:
+        return "error", None, "orphan remove failed: %s" % e
+    return "removed", None, "orphan: %s" % img_path
+
+
 def process(xmp_path, args, digest):
     """Return (status, ident, detail); digest may be None on hash failure."""
     if digest is None:
         img_path = xmp_path[: -len(".xmp")]
         if not os.path.isfile(img_path):
-            if args.remove_orphans:
-                if args.dry_run:
-                    return "would-remove", None, "orphan: %s" % img_path
-                try:
-                    os.unlink(xmp_path)
-                except OSError as e:
-                    return "error", None, "orphan remove failed: %s" % e
-                return "removed", None, "orphan: %s" % img_path
+            # vanished between the stat pass and here
             return "orphan", None, "no companion image: %s" % img_path
         return "error", None, "no hash for %s" % img_path
 
@@ -293,7 +313,9 @@ def main(argv):
     ap.add_argument("--dry-run", action="store_true", help="report what would change, write nothing")
     ap.add_argument("--check", action="store_true", help="verify existing identifiers; exit 1 on mismatch or error")
     ap.add_argument("--remove-orphans", action="store_true",
-                    help="remove sidecars whose companion image does not exist (use --dry-run to only list them)")
+                    help="standalone prune mode: remove sidecars whose companion image "
+                         "does not exist; no image is opened, hashed or rewritten "
+                         "(use --dry-run to only list them)")
     ap.add_argument("--length", type=int, default=64, metavar="N", help="identifier length in hex chars, 1-64 (default 64)")
     ap.add_argument("--prefix", default="hash:", metavar="P", help="identifier prefix (default 'hash:')")
     ap.add_argument("--force", action="store_true", help="replace the whole notes field (discards other note text)")
@@ -308,7 +330,7 @@ def main(argv):
         ap.error("--threads must be at least 1 (0 = number of CPUs)")
     if args.remove_orphans and args.check:
         ap.error("--check and --remove-orphans are mutually exclusive")
-    if not shutil_which("b3sum"):
+    if not args.remove_orphans and not shutil_which("b3sum"):
         sys.exit("error: b3sum (BLAKE3) not found in PATH")
 
     files = collect(args.paths, recurse=not args.no_recurse)
@@ -321,18 +343,26 @@ def main(argv):
             print("error: no such file or directory: %s" % p, file=sys.stderr)
         sys.exit(2)
 
-    # Phase 1: hash all companion images in batched b3sum invocations.
-    images = [x[:-4] for x in files if os.path.isfile(x[:-4])]
-    if images and not args.quiet:
-        print("hashing %d image files..." % len(images), file=sys.stderr)
-    digests = hash_images(images, quiet=args.quiet) if images else {}
+    if args.remove_orphans:
+        # Prune mode: stat + unlink only, no image access whatsoever.
+        if not args.quiet:
+            print("scanning %d sidecars..." % len(files), file=sys.stderr)
+        work, fn = [(xmp, None) for xmp in files], prune
+    else:
+        # Phase 1: hash all companion images in batched b3sum invocations.
+        images = [x[:-4] for x in files if os.path.isfile(x[:-4])]
+        if images and not args.quiet:
+            print("hashing %d image files..." % len(images), file=sys.stderr)
+        digests = hash_images(images, quiet=args.quiet) if images else {}
+        # Phase 2: apply the sidecar edits in a thread pool.
+        if not args.quiet:
+            print("processing %d sidecars..." % len(files), file=sys.stderr)
+        work = [(xmp, digests.get(xmp[:-4])) for xmp in files]
+        fn = process
 
-    # Phase 2: apply the sidecar edits in a thread pool.
-    if not args.quiet:
-        print("processing %d sidecars..." % len(files), file=sys.stderr)
     counts = {}
     bad = 0
-    for xmp, (status, ident, detail) in run_files(files, digests, args):
+    for xmp, (status, ident, detail) in run_files(work, fn, args):
         counts[status] = counts.get(status, 0) + 1
         if status in ("error", "mismatch"):
             bad += 1
@@ -362,17 +392,19 @@ def shutil_which(name):
     return shutil.which(name) is not None
 
 
-def run_files(files, digests, args):
-    """Process sidecars, in parallel by default; yields results in input order."""
+def run_files(work, fn, args):
+    """Run fn(xmp, args, payload) over work in parallel; results in input order.
+
+    fn signatures must match: (xmp_path, args, payload).
+    """
     workers = args.threads if args.threads > 0 else (os.cpu_count() or 1)
-    work = [(xmp, digests.get(xmp[:-4])) for xmp in files]
     if workers == 1 or len(work) == 1:
-        for i, (xmp, d) in enumerate(work):
+        for i, (xmp, payload) in enumerate(work):
             progress(i, len(work), args)
-            yield xmp, process(xmp, args, d)
+            yield xmp, fn(xmp, args, payload)
         return
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [(xmp, pool.submit(process, xmp, args, d)) for xmp, d in work]
+        futures = [(xmp, pool.submit(fn, xmp, args, p)) for xmp, p in work]
         for i, (xmp, fut) in enumerate(futures):
             progress(i, len(futures), args)
             yield xmp, fut.result()
