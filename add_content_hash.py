@@ -54,7 +54,27 @@ Options:
                    uses a single b3sum process per file chunk, which runs
                    one rayon thread per file and so saturates all cores.
   --no-recurse     do not recurse into subdirectories
+  --wait           block while a face-review scan is running, instead of only
+                   warning (see SCAN LOCK below)
+  --wait-timeout S with --wait, give up waiting after S seconds (default:
+                   wait indefinitely)
+  --no-lock-check  skip the scan-lock check entirely
   -q, --quiet      only print errors and the summary
+
+SCAN LOCK
+  The face-review app (~/Workspace/face_recognition) takes
+  ~/.cache/facerec/scan.lock while it detects faces, and it reads the same
+  ~/Pictures this job hashes. The two are the heaviest readers of that disk, so
+  running them together slows both down and can make a scan time out. This
+  script therefore warns when the lock is held. Use --wait to block until the
+  scan finishes instead, which is what a nightly run should do.
+
+  The lock format and the staleness rule are deliberately identical to
+  ScanLock in face_recognition/app/src-tauri/src/scan.rs, so the two can read
+  each other's lock. This copy is self-contained on purpose: this script has no
+  dependency on the face_recognition workspace. The canonical reader, and the
+  parity tests for both, are scripts/scan_lock.py and scripts/test_scan_lock.py
+  there -- change both sides together if the format ever moves.
 
 How it works (two phases):
   1. All companion image files are hashed in batched b3sum invocations
@@ -79,6 +99,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 
@@ -280,6 +301,86 @@ def process(xmp_path, args, digest):
     return "updated", ident, ""
 
 
+# --- scan lock (§14 item 10) -----------------------------------------------
+# See the SCAN LOCK section of the module docstring. Deliberately a small,
+# conservative copy of face_recognition/scripts/scan_lock.py: this script must
+# stay runnable without the face_recognition workspace on disk. Both sides must
+# be changed together if the lock format moves; scripts/test_scan_lock.py in
+# that workspace checks this file still consults the lock.
+SCAN_LOCK_PATH = os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+    "facerec",
+    "scan.lock",
+)
+
+
+def _pid_alive(pid):
+    # Without /proc we cannot tell, and "still running" is the answer that
+    # avoids two jobs fighting over the same disk.
+    return pid != 0 and (not sys.platform.startswith("linux")
+                         or os.path.exists("/proc/%d" % pid))
+
+
+def scan_lock_state(path=None):
+    """(is_running, why). Never raises; an unreadable lock means "not running"."""
+    path = path or SCAN_LOCK_PATH
+    try:
+        with open(path) as fh:
+            txt = fh.read()
+    except OSError:
+        return False, None
+    pid, tree, started = 0, "", ""
+    for line in txt.splitlines():
+        if line.startswith("pid="):
+            try:
+                pid = int(line[4:].strip())
+            except ValueError:
+                pid = 0
+        elif line.startswith("tree="):
+            tree = line[5:].strip()
+        elif line.startswith("started_at="):
+            started = line[11:].strip()
+    if pid == 0:
+        return False, None                      # released
+    if not _pid_alive(pid):
+        return False, "stale scan lock from pid %d" % pid
+    return True, "a face-review scan of %s is running (pid %d, since %s)" % (
+        tree or "the pictures", pid, started or "unknown")
+
+
+def check_scan_lock(args):
+    """Warn, or block with --wait. Returns False only if it gave up waiting."""
+    if args.no_lock_check:
+        return True
+    running, why = scan_lock_state()
+    if not running:
+        if why and not args.quiet:
+            print("note: %s; ignoring it" % why, file=sys.stderr)
+        return True
+    if not args.wait:
+        # Warn and carry on: a scan in flight is not a reason to refuse work
+        # that has not actually started, and this job may be the thing keeping
+        # the pictures warm. --wait is the opt-in for "actually serialise".
+        print("warning: %s" % why, file=sys.stderr)
+        print("warning: this job hashes the same ~/Pictures; pass --wait to block "
+              "until the scan finishes", file=sys.stderr)
+        return True
+    if not args.quiet:
+        print("waiting for the face-review scan to finish...", file=sys.stderr)
+    deadline = None if args.wait_timeout is None else time.time() + args.wait_timeout
+    while True:
+        time.sleep(2)
+        running, why = scan_lock_state()
+        if not running:
+            if not args.quiet:
+                print("scan lock cleared; continuing", file=sys.stderr)
+            return True
+        if deadline is not None and time.time() >= deadline:
+            print("error: gave up waiting after %gs: %s" % (args.wait_timeout, why),
+                  file=sys.stderr)
+            return False
+
+
 def collect(paths, recurse=True):
     out = []
     for p in paths:
@@ -322,6 +423,14 @@ def main(argv):
     ap.add_argument("--threads", type=int, default=0, metavar="N",
                     help="worker threads, default = number of CPUs; 1 = serial")
     ap.add_argument("--no-recurse", action="store_true", help="do not recurse into subdirectories")
+    ap.add_argument("--wait", action="store_true",
+                    help="block while a face-review scan holds the scan lock, "
+                         "instead of only warning (see SCAN LOCK below)")
+    ap.add_argument("--wait-timeout", type=float, default=None, metavar="SECONDS",
+                    help="with --wait, give up waiting after SECONDS "
+                         "(default: wait indefinitely)")
+    ap.add_argument("--no-lock-check", action="store_true",
+                    help="skip the scan-lock check entirely")
     ap.add_argument("-q", "--quiet", action="store_true", help="only print errors and the summary")
     args = ap.parse_args(argv)
     if not 1 <= args.length <= 64:
@@ -330,8 +439,15 @@ def main(argv):
         ap.error("--threads must be at least 1 (0 = number of CPUs)")
     if args.remove_orphans and args.check:
         ap.error("--check and --remove-orphans are mutually exclusive")
+    if args.wait_timeout is not None and not args.wait:
+        ap.error("--wait-timeout only has an effect with --wait")
     if not args.remove_orphans and not shutil_which("b3sum"):
         sys.exit("error: b3sum (BLAKE3) not found in PATH")
+
+    # Before anything reads ~/Pictures: the whole point is not to hash the same
+    # files the app is decoding right now.
+    if not check_scan_lock(args):
+        sys.exit(1)
 
     files = collect(args.paths, recurse=not args.no_recurse)
     if not files:
