@@ -11,7 +11,7 @@ This will install the latest---as yet unreleased---build from the darktable deve
 The `build_darktable.sh` script is a wrapper around the official darktable `build.sh` script. Its primary goal is to:
 
 1.  **Ensure consistency**: It uses a predefined set of build options (like `--enable-ai` and `--prefix /opt/darktable`) so that every build is reproducible and contains the required features.
-2.  **Automate updates**: It automatically performs a `git pull --recurse-submodules` to ensure the build is always based on the latest available source code and submodules.
+2.  **Automate updates**: It automatically performs a `git pull --recurse-submodules` to ensure the build is always based on the latest available source code and submodules. This step can be skipped with `--no-update` to rebuild the current source tree offline.
 3.  **Guaranteed clean builds**: It automatically removes any existing build directory to prevent conflicts between previous builds and the current one.
 4.  **Simplify the workflow**: Instead of remembering complex build flags or running multiple commands (pull, then build, then install), a single command handles the entire lifecycle.
 
@@ -31,6 +31,14 @@ To build and install darktable, simply execute the script from the root of this 
 chmod +x build_darktable.sh
 ./build_darktable.sh
 ```
+
+By default the script runs `git pull --recurse-submodules` and `git submodule update --init --recursive` in the `darktable/` directory before building. To skip the update entirely and rebuild the source exactly as it is currently checked out (fully offline — no git pull, no submodule update), use the `--no-update` flag:
+
+```bash
+./build_darktable.sh --no-update
+```
+
+Note that with `--no-update` the script trusts whatever is in the `darktable/` directory, so make sure the source tree and its submodules are in a complete, consistent state (for example, after a previous run without the flag).
 
 ### Build Configuration
 
