@@ -82,6 +82,7 @@ BUILD_OPTIONS=(
 	--sudo
 	--
 	-DCMAKE_C_FLAGS='-Wno-error=nonnull -Wno-dev'
+    -DDONT_USE_INTERNAL_LUA=Off
 )
 
 # -----------------------------------------------------------------------------
